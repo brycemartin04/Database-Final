@@ -40,6 +40,89 @@ $conn = new mysqli($host, $username, $password, $database, $port);
 if ($conn ->connect_error)
        die('Could not connect: ' . $conn->connect_error);
 
+// add to database
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = trim($_POST['action'] ?? '');
+
+    switch ($action) {
+        case 'add_user':
+            run(
+                $conn,
+                'INSERT INTO users (username, hashed_password, cash_balance) VALUES ('
+                . clean($conn, trim($_POST['username'] ?? '')) . ', '
+                . clean($conn, trim($_POST['hashed_password'] ?? '')) . ', '
+                . clean($conn, (float) ($_POST['cash_balance'] ?? 0)) . ')'
+            );
+            $messages[] = 'User added.';
+            break;
+
+        case 'add_market':
+            $resolveDate = trim($_POST['resolve_date'] ?? '');
+            if ($resolveDate === '') {
+                $resolveDate = null;
+            }
+
+            run(
+                $conn,
+                'INSERT INTO markets (event_description, status, resolve_date, outcome) VALUES ('
+                . clean($conn, trim($_POST['event_description'] ?? '')) . ', '
+                . clean($conn, trim($_POST['status'] ?? '')) . ', '
+                . clean($conn, $resolveDate) . ', '
+                . clean($conn, trim($_POST['outcome'] ?? '')) . ')'
+            );
+            $messages[] = 'Market added.';
+            break;
+
+        case 'add_offer':
+            run(
+                $conn,
+                'INSERT INTO offers (username, market_id, contract_type, side, price_per_share, quantity) VALUES ('
+                . clean($conn, trim($_POST['username'] ?? '')) . ', '
+                . clean($conn, (int) ($_POST['market_id'] ?? 0)) . ', '
+                . clean($conn, trim($_POST['contract_type'] ?? '')) . ', '
+                . clean($conn, trim($_POST['side'] ?? '')) . ', '
+                . clean($conn, (float) ($_POST['price_per_share'] ?? 0)) . ', '
+                . clean($conn, (int) ($_POST['quantity'] ?? 0)) . ')'
+            );
+            $messages[] = 'Offer added.';
+            break;
+
+        case 'add_transaction':
+            run(
+                $conn,
+                'INSERT INTO transactions (username, market_id, contract_type, side, price, quantity) VALUES ('
+                . clean($conn, trim($_POST['username'] ?? '')) . ', '
+                . clean($conn, (int) ($_POST['market_id'] ?? 0)) . ', '
+                . clean($conn, trim($_POST['contract_type'] ?? '')) . ', '
+                . clean($conn, trim($_POST['side'] ?? '')) . ', '
+                . clean($conn, (float) ($_POST['price'] ?? 0)) . ', '
+                . clean($conn, (int) ($_POST['quantity'] ?? 0)) . ')'
+            );
+            $messages[] = 'Transaction added.';
+            break;
+
+        // handle delete from full table at the bottom
+        case 'delete_row':
+            $table = trim($_POST['table'] ?? '');
+            $id = trim($_POST['id'] ?? '');
+
+            if ($table === 'users') {
+                run($conn, 'DELETE FROM users WHERE username = ' . clean($conn, $id));
+            } elseif ($table === 'markets') {
+                run($conn, 'DELETE FROM markets WHERE market_id = ' . clean($conn, (int) $id));
+            } elseif ($table === 'offers') {
+                run($conn, 'DELETE FROM offers WHERE offer_id = ' . clean($conn, (int) $id));
+            } elseif ($table === 'transactions') {
+                run($conn, 'DELETE FROM transactions WHERE transaction_id = ' . clean($conn, (int) $id));
+            } else {
+                throw new RuntimeException('Unknown table.');
+            }
+
+            $messages[] = 'Row deleted.';
+            break;
+    }
+}
+
 $q1Status = trim($_GET['q1_status'] ?? '');
 $q1Keyword = trim($_GET['q1_keyword'] ?? '');
 $q1Sql = 'SELECT market_id, event_description, status, resolve_date, outcome FROM markets WHERE 1 = 1';
@@ -199,6 +282,97 @@ $marketOptions = array_column($markets, 'market_id');
 </head>
 <body>
 <div class="page">
+        <div class="grid">
+            <div class="card">
+                <h2>Add User</h2>
+                <form method="post">
+                    <input type="hidden" name="action" value="add_user">
+                    <input name="username" placeholder="username" required>
+                    <input name="hashed_password" placeholder="hashed_password" required>
+                    <input name="cash_balance" type="number" step="0.01" min="0" placeholder="cash_balance" required>
+                    <button type="submit">Add User</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2>Add Market</h2>
+                <form method="post">
+                    <input type="hidden" name="action" value="add_market">
+                    <input name="event_description" placeholder="event description" required>
+                    <select name="status">
+                        <option value="trading">trading</option>
+                        <option value="resolved">resolved</option>
+                    </select>
+                    <input name="resolve_date" type="date">
+                    <select name="outcome">
+                        <option value="pending">pending</option>
+                        <option value="yes">yes</option>
+                        <option value="no">no</option>
+                    </select>
+                    <button type="submit">Add Market</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2>Add Offer</h2>
+                <form method="post">
+                    <input type="hidden" name="action" value="add_offer">
+                    <select name="username" required>
+                        <option value="">select user</option>
+                        <?php foreach ($userOptions as $user): ?>
+                            <option value="<?= ($user) ?>"><?= ($user) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select name="market_id" required>
+                        <option value="">select market</option>
+                        <?php foreach ($marketOptions as $marketId): ?>
+                            <option value="<?= ($marketId) ?>"><?= ($marketId) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select name="contract_type">
+                        <option value="yes">yes</option>
+                        <option value="no">no</option>
+                    </select>
+                    <select name="side">
+                        <option value="buy">buy</option>
+                        <option value="sell">sell</option>
+                    </select>
+                    <input name="price_per_share" type="number" step="0.01" min="0.01" max="0.99" placeholder="price per share" required>
+                    <input name="quantity" type="number" min="1" placeholder="quantity" required>
+                    <button type="submit">Add Offer</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2>Add Transaction</h2>
+                <form method="post">
+                    <input type="hidden" name="action" value="add_transaction">
+                    <select name="username" required>
+                        <option value="">select user</option>
+                        <?php foreach ($userOptions as $user): ?>
+                            <option value="<?= ($user) ?>"><?= ($user) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select name="market_id" required>
+                        <option value="">select market</option>
+                        <?php foreach ($marketOptions as $marketId): ?>
+                            <option value="<?= ($marketId) ?>"><?= ($marketId) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select name="contract_type">
+                        <option value="yes">yes</option>
+                        <option value="no">no</option>
+                    </select>
+                    <select name="side">
+                        <option value="buy">buy</option>
+                        <option value="sell">sell</option>
+                    </select>
+                    <input name="price" type="number" step="0.01" min="0.01" max="0.99" placeholder="price" required>
+                    <input name="quantity" type="number" min="1" placeholder="quantity" required>
+                    <button type="submit">Add Transaction</button>
+                </form>
+            </div>
+        </div>
     <div class="query-grid">
         <div class="card">
             <h2>View Markets</h2>
