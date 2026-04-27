@@ -19,18 +19,95 @@ function run($conn, $query)
     return [];
 }
 
+// cleans user input
+// num -> string
+// uses real escape string to prevent injections
+function clean($conn, $value)
+{
+    if ($value === null) {
+        return 'NULL';
+    }
+
+    if (is_int($value) || is_float($value)) {
+        return (string) $value;
+    }
+
+    return "'" . $conn->real_escape_string((string) $value) . "'";
+}
+
 // database connection
 $conn = new mysqli($host, $username, $password, $database, $port);
 if ($conn ->connect_error)
        die('Could not connect: ' . $conn->connect_error);
 
+$q1Status = trim($_GET['q1_status'] ?? '');
+$q1Keyword = trim($_GET['q1_keyword'] ?? '');
+$q1Sql = 'SELECT market_id, event_description, status, resolve_date, outcome FROM markets WHERE 1 = 1';
+if ($q1Status !== '') {
+    $q1Sql .= ' AND status = ' . clean($conn, $q1Status);
+}
+if ($q1Keyword !== '') {
+    $q1Sql .= ' AND event_description LIKE ' . clean($conn, '%' . $q1Keyword . '%');
+}
+$q1Sql .= ' ORDER BY market_id';
+$query1Rows = run($conn, $q1Sql);
 
+$q2User = trim($_GET['q2_user'] ?? '');
+$q2Side = trim($_GET['q2_side'] ?? '');
+$q2Sql = "SELECT o.offer_id, o.username, m.event_description, o.contract_type, o.side, o.price_per_share, o.quantity, o.created_at
+          FROM offers o
+          JOIN markets m ON o.market_id = m.market_id";
+if ($q2User !== '') {
+    $q2Sql .= ' AND o.username = ' . clean($conn, $q2User);
+}
+if ($q2Side !== '') {
+    $q2Sql .= ' AND o.side = ' . clean($conn, $q2Side);
+}
+$q2Sql .= ' ORDER BY o.created_at DESC, o.offer_id DESC';
+$query2Rows = run($conn, $q2Sql);
 
+$q3User = trim($_GET['q3_user'] ?? '');
+$q3MarketId = trim($_GET['q3_market_id'] ?? '');
+$q3Sql = "SELECT t.transaction_id, t.username, m.event_description, t.contract_type, t.side, t.price, t.quantity, t.transacted_at
+          FROM transactions t
+          JOIN markets m ON t.market_id = m.market_id";
+if ($q3User !== '') {
+    $q3Sql .= ' AND t.username = ' . clean($conn, $q3User);
+}
+if ($q3MarketId !== '' && ctype_digit($q3MarketId)) {
+    $q3Sql .= ' AND t.market_id = ' . clean($conn, (int) $q3MarketId);
+}
+$q3Sql .= ' ORDER BY t.transacted_at DESC, t.transaction_id DESC';
+$query3Rows = run($conn, $q3Sql);
 
+$q4Status = trim($_GET['q4_status'] ?? '');
+$q4MinOffers = trim($_GET['q4_min_offers'] ?? '');
+$q4Sql = "SELECT m.market_id,
+                 m.event_description,
+                 m.status,
+                 COUNT(DISTINCT o.offer_id) AS open_offers,
+                 COUNT(DISTINCT t.transaction_id) AS total_transactions
+          FROM markets m
+          LEFT JOIN offers o ON m.market_id = o.market_id
+          LEFT JOIN transactions t ON m.market_id = t.market_id";
+if ($q4Status !== '') {
+    $q4Sql .= ' AND m.status = ' . clean($conn, $q4Status);
+}
+$q4Sql .= ' GROUP BY m.market_id, m.event_description, m.status';
+if ($q4MinOffers !== '' && ctype_digit($q4MinOffers)) {
+    $q4Sql .= ' HAVING COUNT(DISTINCT o.offer_id) >= ' . clean($conn, (int) $q4MinOffers);
+}
+$q4Sql .= ' ORDER BY m.market_id';
+$query4Rows = run($conn, $q4Sql);
 
-
-
-
+$q5MinCash = trim($_GET['q5_min_cash'] ?? '');
+$q5MinCashValue = is_numeric($q5MinCash) ? (float) $q5MinCash : 0.0;
+$query5Rows = run(
+    $conn,
+    'SELECT username, cash_balance FROM users WHERE cash_balance >= '
+    . clean($conn, $q5MinCashValue)
+    . ' ORDER BY cash_balance DESC, username ASC'
+);
 
 // display all databases
 
@@ -113,7 +190,201 @@ $marketOptions = array_column($markets, 'market_id');
         .inline-form {
             margin: 0;
         }
+        .query-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 20px;
+        }
     </style>
+</head>
+<body>
+<div class="page">
+    <div class="query-grid">
+        <div class="card">
+            <h2>View Markets</h2>
+            <form method="get">
+                <select name="q1_status">
+                    <option value="">any status</option>
+                    <option value="trading" <?= $q1Status === 'trading' ? 'selected' : '' ?>>trading</option>
+                    <option value="resolved" <?= $q1Status === 'resolved' ? 'selected' : '' ?>>resolved</option>
+                </select>
+                <input name="q1_keyword" value="<?= ($q1Keyword) ?>" placeholder="keyword in event description">
+                <button type="submit">Run Query 1</button>
+            </form>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Event</th>
+                        <th>Status</th>
+                        <th>Resolve Date</th>
+                        <th>Outcome</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($query1Rows as $row): ?>
+                        <tr>
+                            <td><?= ($row['market_id']) ?></td>
+                            <td><?= ($row['event_description']) ?></td>
+                            <td><?= ($row['status']) ?></td>
+                            <td><?= ($row['resolve_date']) ?></td>
+                            <td><?= ($row['outcome']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>View Offers On Each Market</h2>
+            <form method="get">
+                <select name="q2_user">
+                    <option value="">any user</option>
+                    <?php foreach ($userOptions as $user): ?>
+                        <option value="<?= ($user) ?>" <?= $q2User === $user ? 'selected' : '' ?>><?= ($user) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <select name="q2_side">
+                    <option value="">any side</option>
+                    <option value="buy" <?= $q2Side === 'buy' ? 'selected' : '' ?>>buy</option>
+                    <option value="sell" <?= $q2Side === 'sell' ? 'selected' : '' ?>>sell</option>
+                </select>
+                <button type="submit">Run Query 2</button>
+            </form>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Offer ID</th>
+                        <th>User</th>
+                        <th>Event</th>
+                        <th>Type</th>
+                        <th>Side</th>
+                        <th>Price</th>
+                        <th>Quantity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($query2Rows as $row): ?>
+                        <tr>
+                            <td><?= ($row['offer_id']) ?></td>
+                            <td><?= ($row['username']) ?></td>
+                            <td><?= ($row['event_description']) ?></td>
+                            <td><?= ($row['contract_type']) ?></td>
+                            <td><?= ($row['side']) ?></td>
+                            <td>$<?= (number_format((float) $row['price_per_share'], 2)) ?></td>
+                            <td><?= ($row['quantity']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>View Transactions On Each Market</h2>
+            <form method="get">
+                <select name="q3_user">
+                    <option value="">any user</option>
+                    <?php foreach ($userOptions as $user): ?>
+                        <option value="<?= ($user) ?>" <?= $q3User === $user ? 'selected' : '' ?>><?= ($user) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <select name="q3_market_id">
+                    <option value="">any market</option>
+                    <?php foreach ($marketOptions as $marketId): ?>
+                        <option value="<?= ($marketId) ?>" <?= $q3MarketId === (string) $marketId ? 'selected' : '' ?>><?= ($marketId) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit">Run Query 3</button>
+            </form>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Txn ID</th>
+                        <th>User</th>
+                        <th>Event</th>
+                        <th>Type</th>
+                        <th>Side</th>
+                        <th>Price</th>
+                        <th>Quantity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($query3Rows as $row): ?>
+                        <tr>
+                            <td><?= ($row['transaction_id']) ?></td>
+                            <td><?= ($row['username']) ?></td>
+                            <td><?= ($row['event_description']) ?></td>
+                            <td><?= ($row['contract_type']) ?></td>
+                            <td><?= ($row['side']) ?></td>
+                            <td>$<?= (number_format((float) $row['price'], 2)) ?></td>
+                            <td><?= ($row['quantity']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Number of Offers and Transactions in Each Market</h2>
+            <form method="get">
+                <select name="q4_status">
+                    <option value="">any status</option>
+                    <option value="trading" <?= $q4Status === 'trading' ? 'selected' : '' ?>>trading</option>
+                    <option value="resolved" <?= $q4Status === 'resolved' ? 'selected' : '' ?>>resolved</option>
+                </select>
+                <input name="q4_min_offers" type="number" min="0" value="<?= ($q4MinOffers) ?>" placeholder="minimum open offers">
+                <button type="submit">Run Query 4</button>
+            </form>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Market</th>
+                        <th>Event</th>
+                        <th>Status</th>
+                        <th>Open Offers</th>
+                        <th>Transactions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($query4Rows as $row): ?>
+                        <tr>
+                            <td><?= ($row['market_id']) ?></td>
+                            <td><?= ($row['event_description']) ?></td>
+                            <td><?= ($row['status']) ?></td>
+                            <td><?= ($row['open_offers']) ?></td>
+                            <td><?= ($row['total_transactions']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>View Users Above a Certain Balance</h2>
+            <form method="get">
+                <input name="q5_min_cash" type="number" step="0.01" min="0" value="<?= ($q5MinCash) ?>" placeholder="minimum cash balance">
+                <button type="submit">Run Query 5</button>
+            </form>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Cash Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($query5Rows as $row): ?>
+                        <tr>
+                            <td><?= ($row['username']) ?></td>
+                            <td>$<?= (number_format((float) $row['cash_balance'], 2)) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- DISPLAY ALL TABLES -->
     <div class="card">
         <h2>Users</h2>
         <table>
@@ -261,4 +532,6 @@ $marketOptions = array_column($markets, 'market_id');
             </tbody>
         </table>
     </div>
+</div>
+</body>
 <html>
