@@ -6,6 +6,12 @@ $password = '1234';
 $database = 'final';
 $port = 3306;
 
+/* $host = ''; */
+/* $username = ''; */
+/* $password = ''; */
+/* $database = ''; */
+/* $port = ; */
+
 // executes query and returns an array
 function run($conn, $query)
 {
