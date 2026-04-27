@@ -44,82 +44,85 @@ if ($conn ->connect_error)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = trim($_POST['action'] ?? '');
 
-    switch ($action) {
-        case 'add_user':
-            run(
-                $conn,
-                'INSERT INTO users (username, hashed_password, cash_balance) VALUES ('
-                . clean($conn, trim($_POST['username'] ?? '')) . ', '
-                . clean($conn, trim($_POST['hashed_password'] ?? '')) . ', '
-                . clean($conn, (float) ($_POST['cash_balance'] ?? 0)) . ')'
-            );
-            $messages[] = 'User added.';
-            break;
+    try{
+        switch ($action) {
+            case 'add_user':
+                run(
+                    $conn,
+                    'INSERT INTO users (username, hashed_password, cash_balance) VALUES ('
+                    . clean($conn, trim($_POST['username'] ?? '')) . ', '
+                    . clean($conn, trim($_POST['hashed_password'] ?? '')) . ', '
+                    . clean($conn, (float) ($_POST['cash_balance'] ?? 0)) . ')'
+                );
+                $messages[] = 'User added.';
+                break;
 
-        case 'add_market':
-            $resolveDate = trim($_POST['resolve_date'] ?? '');
-            if ($resolveDate === '') {
-                $resolveDate = null;
-            }
+            case 'add_market':
+                $resolveDate = trim($_POST['resolve_date'] ?? '');
+                if ($resolveDate === '') {
+                    $resolveDate = null;
+                }
 
-            run(
-                $conn,
-                'INSERT INTO markets (event_description, status, resolve_date, outcome) VALUES ('
-                . clean($conn, trim($_POST['event_description'] ?? '')) . ', '
-                . clean($conn, trim($_POST['status'] ?? '')) . ', '
-                . clean($conn, $resolveDate) . ', '
-                . clean($conn, trim($_POST['outcome'] ?? '')) . ')'
-            );
-            $messages[] = 'Market added.';
-            break;
+                run(
+                    $conn,
+                    'INSERT INTO markets (event_description, status, resolve_date, outcome) VALUES ('
+                    . clean($conn, trim($_POST['event_description'] ?? '')) . ', '
+                    . clean($conn, trim($_POST['status'] ?? '')) . ', '
+                    . clean($conn, $resolveDate) . ', '
+                    . clean($conn, trim($_POST['outcome'] ?? '')) . ')'
+                );
+                $messages[] = 'Market added.';
+                break;
 
-        case 'add_offer':
-            run(
-                $conn,
-                'INSERT INTO offers (username, market_id, contract_type, side, price_per_share, quantity) VALUES ('
-                . clean($conn, trim($_POST['username'] ?? '')) . ', '
-                . clean($conn, (int) ($_POST['market_id'] ?? 0)) . ', '
-                . clean($conn, trim($_POST['contract_type'] ?? '')) . ', '
-                . clean($conn, trim($_POST['side'] ?? '')) . ', '
-                . clean($conn, (float) ($_POST['price_per_share'] ?? 0)) . ', '
-                . clean($conn, (int) ($_POST['quantity'] ?? 0)) . ')'
-            );
-            $messages[] = 'Offer added.';
-            break;
+            case 'add_offer':
+                run(
+                    $conn,
+                    'INSERT INTO offers (username, market_id, contract_type, side, price_per_share, quantity) VALUES ('
+                    . clean($conn, trim($_POST['username'] ?? '')) . ', '
+                    . clean($conn, (int) ($_POST['market_id'] ?? 0)) . ', '
+                    . clean($conn, trim($_POST['contract_type'] ?? '')) . ', '
+                    . clean($conn, trim($_POST['side'] ?? '')) . ', '
+                    . clean($conn, (float) ($_POST['price_per_share'] ?? 0)) . ', '
+                    . clean($conn, (int) ($_POST['quantity'] ?? 0)) . ')'
+                );
+                $messages[] = 'Offer added.';
+                break;
 
-        case 'add_transaction':
-            run(
-                $conn,
-                'INSERT INTO transactions (username, market_id, contract_type, side, price, quantity) VALUES ('
-                . clean($conn, trim($_POST['username'] ?? '')) . ', '
-                . clean($conn, (int) ($_POST['market_id'] ?? 0)) . ', '
-                . clean($conn, trim($_POST['contract_type'] ?? '')) . ', '
-                . clean($conn, trim($_POST['side'] ?? '')) . ', '
-                . clean($conn, (float) ($_POST['price'] ?? 0)) . ', '
-                . clean($conn, (int) ($_POST['quantity'] ?? 0)) . ')'
-            );
-            $messages[] = 'Transaction added.';
-            break;
+            case 'add_transaction':
+                run(
+                    $conn,
+                    'INSERT INTO transactions (username, market_id, contract_type, side, price, quantity) VALUES ('
+                    . clean($conn, trim($_POST['username'] ?? '')) . ', '
+                    . clean($conn, (int) ($_POST['market_id'] ?? 0)) . ', '
+                    . clean($conn, trim($_POST['contract_type'] ?? '')) . ', '
+                    . clean($conn, trim($_POST['side'] ?? '')) . ', '
+                    . clean($conn, (float) ($_POST['price'] ?? 0)) . ', '
+                    . clean($conn, (int) ($_POST['quantity'] ?? 0)) . ')'
+                );
+                $messages[] = 'Transaction added.';
+                break;
 
-        // handle delete from full table at the bottom
-        case 'delete_row':
-            $table = trim($_POST['table'] ?? '');
-            $id = trim($_POST['id'] ?? '');
+            // handle delete from full table at the bottom
+            case 'delete_row':
+                $table = trim($_POST['table'] ?? '');
+                $id = trim($_POST['id'] ?? '');
 
-            if ($table === 'users') {
-                run($conn, 'DELETE FROM users WHERE username = ' . clean($conn, $id));
-            } elseif ($table === 'markets') {
-                run($conn, 'DELETE FROM markets WHERE market_id = ' . clean($conn, (int) $id));
-            } elseif ($table === 'offers') {
-                run($conn, 'DELETE FROM offers WHERE offer_id = ' . clean($conn, (int) $id));
-            } elseif ($table === 'transactions') {
-                run($conn, 'DELETE FROM transactions WHERE transaction_id = ' . clean($conn, (int) $id));
-            } else {
-                throw new RuntimeException('Unknown table.');
-            }
+                if ($table === 'users') {
+                    run($conn, 'DELETE FROM users WHERE username = ' . clean($conn, $id));
+                } elseif ($table === 'markets') {
+                    run($conn, 'DELETE FROM markets WHERE market_id = ' . clean($conn, (int) $id));
+                } elseif ($table === 'offers') {
+                    run($conn, 'DELETE FROM offers WHERE offer_id = ' . clean($conn, (int) $id));
+                } elseif ($table === 'transactions') {
+                    run($conn, 'DELETE FROM transactions WHERE transaction_id = ' . clean($conn, (int) $id));
+                } else {
+                    throw new RuntimeException('Unknown table.');
+                }
 
-            $messages[] = 'Row deleted.';
-            break;
+                $messages[] = 'Row deleted.';
+                break;
+        }
+    } catch (Throwable $e) {
     }
 }
 
@@ -224,7 +227,7 @@ $marketOptions = array_column($markets, 'market_id');
             margin: 0 auto;
             padding: 24px;
         }
-        .card {
+        .hero, .card {
             background: #fff;
             border: 1px solid #d1d5db;
             border-radius: 10px;
@@ -278,10 +281,40 @@ $marketOptions = array_column($markets, 'market_id');
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 20px;
         }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .stat {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 12px;
+        }
+        .small {
+            color: #6b7280;
+            font-size: 14px;
+        }
+        h1 {
+            text-align:center;
+        }
     </style>
 </head>
 <body>
 <div class="page">
+
+    <div class="hero">
+        <h1>Prediction Market</h1>
+        <div class="stats">
+            <div class="stat"><strong>Users</strong><br><?= (count($users)) ?></div>
+            <div class="stat"><strong>Markets</strong><br><?= (count($markets)) ?></div>
+            <div class="stat"><strong>Offers</strong><br><?= (count($offers)) ?></div>
+            <div class="stat"><strong>Transactions</strong><br><?= (count($transactions)) ?></div>
+        </div>
+    </div>
+
         <div class="grid">
             <div class="card">
                 <h2>Add User</h2>
