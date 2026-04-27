@@ -1,4 +1,6 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
 $host = '10.1.1.100';
 $username = 'bryce';
@@ -6,11 +8,11 @@ $password = '1234';
 $database = 'final';
 $port = 3306;
 
-/* $host = ''; */
-/* $username = ''; */
-/* $password = ''; */
-/* $database = ''; */
-/* $port = ; */
+$host = 'localhost';
+$username = 'root';
+$password = '';
+$database = 'final';
+$port = 3306;
 
 // executes query and returns an array
 function run($conn, $query)
