@@ -46,3 +46,4 @@ CREATE TABLE transactions (
     CONSTRAINT transactions_price_chk CHECK (price >= 0.01 AND price <= 0.99),
     CONSTRAINT transactions_quantity_chk CHECK (quantity > 0)
 );
+
